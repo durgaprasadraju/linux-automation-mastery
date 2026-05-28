@@ -33,6 +33,7 @@ resource "aws_instance" "go_web_server" {
               # Create a simple run script
               echo 'export APP_SECRET="${local.secret_value}"' >> /etc/environment
               
+              
               # Run the app (Assuming GitHub Actions uploaded the compiled binary here)
               # ./go-app &
               EOF

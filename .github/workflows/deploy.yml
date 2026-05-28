@@ -30,7 +30,7 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          docker build -t $ECR_REPOSITORY ./src
+          docker build -t $ECR_REPOSITORY ./day-3-aws-secrets/go-web-app
 
       - name: Tag Docker Image
         run: |

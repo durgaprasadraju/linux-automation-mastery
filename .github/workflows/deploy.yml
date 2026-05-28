@@ -32,7 +32,7 @@ jobs:
         uses: hashicorp/setup-terraform@v2
 
       - name: Terraform Init & Apply
-        working-directory: ./terraform # Put your TF files in a terraform/ folder
+        working-directory: ./day-3-aws-secrets/terraform # Put your TF files in a terraform/ folder
         run: |
           terraform init
           terraform apply -auto-approve

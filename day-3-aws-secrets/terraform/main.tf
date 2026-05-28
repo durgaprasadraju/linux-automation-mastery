@@ -4,10 +4,10 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 
-# Create ECR Repository
+/* # Create ECR Repository
 resource "aws_ecr_repository" "app_repo" {
   name = "go-web-app"
-}
+} */
 
 # IAM Role for EC2
 resource "aws_iam_role" "ec2_role" {

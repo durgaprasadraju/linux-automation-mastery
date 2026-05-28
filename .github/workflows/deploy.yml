@@ -1,4 +1,5 @@
-name: Build and Deploy Infrastructure
+```yaml
+name: Deploy Go App
 
 on:
   push:
@@ -6,33 +7,50 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ap-south-1
+      ECR_REPOSITORY: go-web-app
+
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Setup Golang
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
-
-      - name: Build Go App
-        working-directory: ./day-3-aws-secrets/go # ONLY IF your code is in a subfolder
-        run: go build -o my-go-app main.go
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ap-south-1
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker Image
+        run: |
+          docker build -t $ECR_REPOSITORY ./src
+
+      - name: Tag Docker Image
+        run: |
+          docker tag $ECR_REPOSITORY:latest \
+          ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest
+
+      - name: Push Docker Image
+        run: |
+          docker push \
+          ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Init & Apply
-        working-directory: ./day-3-aws-secrets/terraform # Put your TF files in a terraform/ folder
-        run: |
-          terraform init
-          terraform apply -auto-approve
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: terraform
+        run: terraform apply -auto-approve
+```

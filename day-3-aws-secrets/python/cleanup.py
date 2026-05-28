@@ -12,27 +12,56 @@ ec2 = boto3.client("ec2", region_name=REGION)
 iam = boto3.client("iam")
 
 
+# -----------------------------------------
+# TERMINATE EC2 INSTANCES USING SECURITY GROUP
+# -----------------------------------------
 def terminate_ec2_instances():
     print("Finding EC2 instances...")
 
-    reservations = ec2.describe_instances()["Reservations"]
+    response = ec2.describe_instances(
+        Filters=[
+            {
+                "Name": "instance-state-name",
+                "Values": ["pending", "running", "stopping", "stopped"]
+            }
+        ]
+    )
 
-    for reservation in reservations:
+    instance_ids = []
+
+    for reservation in response["Reservations"]:
         for instance in reservation["Instances"]:
-            instance_id = instance["InstanceId"]
-            state = instance["State"]["Name"]
 
-            if state != "terminated":
-                print(f"Terminating instance: {instance_id}")
+            groups = instance.get("SecurityGroups", [])
 
-                ec2.terminate_instances(
-                    InstanceIds=[instance_id]
-                )
+            for group in groups:
+                if SECURITY_GROUP_NAME == group["GroupName"]:
+                    instance_ids.append(instance["InstanceId"])
+
+    if not instance_ids:
+        print("No EC2 instances found.")
+        return
+
+    print("Terminating instances:", instance_ids)
+
+    ec2.terminate_instances(
+        InstanceIds=instance_ids
+    )
+
+    waiter = ec2.get_waiter("instance_terminated")
 
     print("Waiting for instances to terminate...")
-    time.sleep(30)
+
+    waiter.wait(
+        InstanceIds=instance_ids
+    )
+
+    print("Instances terminated.")
 
 
+# -----------------------------------------
+# DELETE INSTANCE PROFILE
+# -----------------------------------------
 def delete_instance_profile():
     try:
         print(f"Removing role from instance profile: {INSTANCE_PROFILE}")
@@ -56,11 +85,16 @@ def delete_instance_profile():
         print(e)
 
 
+# -----------------------------------------
+# DELETE INLINE POLICIES
+# -----------------------------------------
 def delete_inline_policies():
     try:
-        policies = iam.list_role_policies(
+        response = iam.list_role_policies(
             RoleName=ROLE_NAME
-        )["PolicyNames"]
+        )
+
+        policies = response["PolicyNames"]
 
         for policy in policies:
             print(f"Deleting inline policy: {policy}")
@@ -74,6 +108,32 @@ def delete_inline_policies():
         print(e)
 
 
+# -----------------------------------------
+# DETACH MANAGED POLICIES
+# -----------------------------------------
+def detach_managed_policies():
+    try:
+        response = iam.list_attached_role_policies(
+            RoleName=ROLE_NAME
+        )
+
+        policies = response["AttachedPolicies"]
+
+        for policy in policies:
+            print(f"Detaching managed policy: {policy['PolicyName']}")
+
+            iam.detach_role_policy(
+                RoleName=ROLE_NAME,
+                PolicyArn=policy["PolicyArn"]
+            )
+
+    except ClientError as e:
+        print(e)
+
+
+# -----------------------------------------
+# DELETE IAM ROLE
+# -----------------------------------------
 def delete_role():
     try:
         print(f"Deleting IAM role: {ROLE_NAME}")
@@ -86,6 +146,9 @@ def delete_role():
         print(e)
 
 
+# -----------------------------------------
+# DELETE SECURITY GROUP
+# -----------------------------------------
 def delete_security_group():
     try:
         response = ec2.describe_security_groups(
@@ -99,24 +162,44 @@ def delete_security_group():
 
         groups = response["SecurityGroups"]
 
+        if not groups:
+            print("Security group not found.")
+            return
+
         for sg in groups:
             sg_id = sg["GroupId"]
 
             print(f"Deleting Security Group: {sg_id}")
 
-            ec2.delete_security_group(
-                GroupId=sg_id
-            )
+            try:
+                ec2.delete_security_group(
+                    GroupId=sg_id
+                )
+
+                print("Security group deleted.")
+
+            except ClientError as e:
+                print(e)
 
     except ClientError as e:
         print(e)
 
 
+# -----------------------------------------
+# MAIN
+# -----------------------------------------
 if __name__ == "__main__":
+
     terminate_ec2_instances()
+
     delete_instance_profile()
+
     delete_inline_policies()
+
+    detach_managed_policies()
+
     delete_role()
+
     delete_security_group()
 
     print("Cleanup completed.")

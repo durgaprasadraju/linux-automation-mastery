@@ -11,7 +11,7 @@ jobs:
 
     env:
       AWS_REGION: us-east-1
-      ECR_REPOSITORY: go-web-app
+      ECR_REPOSITORY: linux-automation-mastery
 
     steps:
       - name: Checkout

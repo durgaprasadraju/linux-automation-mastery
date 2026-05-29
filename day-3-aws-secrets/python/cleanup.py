@@ -6,7 +6,7 @@ REGION = "us-east-1"
 
 ROLE_NAME = "go-web-role"
 INSTANCE_PROFILE = "go-web-profile"
-SECURITY_GROUP_NAME = "go-web-sg"
+SECURITY_GROUP_NAME = "go-web-sg-v3"
 
 ec2 = boto3.client("ec2", region_name=REGION)
 iam = boto3.client("iam")

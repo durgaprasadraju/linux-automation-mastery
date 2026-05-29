@@ -3,86 +3,90 @@ provider "aws" {
 }
 
 # -----------------------------------
-# GET AWS ACCOUNT ID
+# AWS ACCOUNT
 # -----------------------------------
 data "aws_caller_identity" "current" {}
 
 # -----------------------------------
-# IAM ROLE FOR EC2
+# SECRETS MANAGER
 # -----------------------------------
-resource "aws_iam_role" "ec2_ecr_role" {
-  name = "ec2-ecr-role"
+resource "aws_secretsmanager_secret" "app_secret" {
+  name = "go-web-app-secret"
+}
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+resource "aws_secretsmanager_secret_version" "app_secret_value" {
+  secret_id = aws_secretsmanager_secret.app_secret.id
 
-    Statement = [
-      {
-        Effect = "Allow"
-
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-
-        Action = "sts:AssumeRole"
-      }
-    ]
+  secret_string = jsonencode({
+    APP_SECRET = var.app_secret
   })
 }
 
 # -----------------------------------
-# ATTACH ECR READ POLICY
+# IAM ROLE
 # -----------------------------------
-resource "aws_iam_role_policy_attachment" "ecr_readonly" {
-  role       = aws_iam_role.ec2_ecr_role.name
+resource "aws_iam_role" "ec2_role" {
+  name = "ec2-go-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+# ECR ACCESS
+resource "aws_iam_role_policy_attachment" "ecr_access" {
+  role       = aws_iam_role.ec2_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
-# -----------------------------------
+# SECRETS ACCESS
+resource "aws_iam_role_policy_attachment" "secrets_access" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
+}
+
 # INSTANCE PROFILE
-# -----------------------------------
-resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "ec2-ecr-profile"
-  role = aws_iam_role.ec2_ecr_role.name
+resource "aws_iam_instance_profile" "profile" {
+  name = "ec2-go-profile"
+  role = aws_iam_role.ec2_role.name
 }
 
 # -----------------------------------
 # SECURITY GROUP
 # -----------------------------------
 resource "aws_security_group" "go_sg" {
-  name = "go-web-sg-v4"
+  name = "go-web-sg-prod"
 
   ingress {
-    description = "HTTP"
-
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-
     cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
-    description = "SSH"
-
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-
-    # Replace with your IP
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["0.0.0.0/0"] # replace with your IP in real setup
   }
 
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-
     cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = {
-    Name = "go-web-sg-v4"
+    Name = "go-web-sg-prod"
   }
 }
 
@@ -93,7 +97,7 @@ resource "aws_instance" "go_server" {
   ami           = "ami-0c7217cdde317cfec"
   instance_type = "t2.micro"
 
-  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
+  iam_instance_profile = aws_iam_instance_profile.profile.name
 
   vpc_security_group_ids = [
     aws_security_group.go_sg.id
@@ -102,10 +106,10 @@ resource "aws_instance" "go_server" {
   user_data = templatefile("${path.module}/user-data.sh", {
     region     = var.region
     account_id = data.aws_caller_identity.current.account_id
-    app_secret = var.app_secret
+    secret_id  = aws_secretsmanager_secret.app_secret.name
   })
 
   tags = {
-    Name = "go-web-server-v4"
+    Name = "go-web-server-prod"
   }
 }

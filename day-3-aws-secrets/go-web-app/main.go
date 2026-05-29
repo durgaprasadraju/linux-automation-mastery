@@ -18,6 +18,6 @@ func main() {
 		fmt.Fprintf(w, "Secure App Running! Secret Value: %s\n", secret)
 	})
 
-	fmt.Println("Server starting on port 8080...")
+	fmt.Println("Server starting on port 8080...", secret)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

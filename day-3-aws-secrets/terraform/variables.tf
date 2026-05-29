@@ -3,5 +3,6 @@ variable "region" {
 }
 
 variable "app_secret" {
-  default = "my-super-secret-key"
+  type      = string
+  sensitive = true
 }
